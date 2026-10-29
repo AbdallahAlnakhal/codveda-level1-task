@@ -3,47 +3,67 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Codveda Level 3 - Advanced Task App</title>
+    <title>Codveda Enterprise - Task Manager</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 550px; margin: 40px auto; padding: 20px; background: #eef2f5; }
-        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; background: #f0f2f5; }
+        .card { background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 20px; }
         h2, h3 { text-align: center; color: #333; margin-top: 0; }
-        input { width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        button { padding: 10px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
-        .input-group { display: flex; gap: 10px; margin-bottom: 15px; }
+        input, select { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
+        button { padding: 10px 15px; background: #28a745; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: bold; }
+        button:hover { opacity: 0.9; }
+        .input-group { display: flex; gap: 10px; margin-top: 15px; }
         .input-group input { flex: 1; margin: 0; }
         .input-group button { width: auto; background: #007bff; }
         ul { list-style: none; padding: 0; }
-        li { background: #f9f9f9; margin-bottom: 8px; padding: 10px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #ddd; }
+        li { background: #fafafa; margin-bottom: 10px; padding: 12px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #e1e4e8; }
         .actions { display: flex; gap: 5px; }
-        .delete-btn { background: #dc3545; padding: 5px 10px; font-size: 12px; }
-        .edit-btn { background: #ffc107; color: black; padding: 5px 10px; font-size: 12px; }
+        .delete-btn { background: #dc3545; padding: 6px 10px; font-size: 12px; }
+        .edit-btn { background: #ffc107; color: black; padding: 6px 10px; font-size: 12px; }
         .hidden { display: none; }
-        .user-info { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-        .logout-btn { background: #6c757d; padding: 5px 10px; font-size: 13px; }
+        .user-info { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #eee; }
+        .logout-btn { background: #6c757d; padding: 6px 12px; font-size: 13px; }
+        .badge { background: #007bff; color: white; padding: 3px 8px; border-radius: 12px; font-size: 11px; text-transform: uppercase; }
+        .admin-badge { background: #dc3545; }
+        .admin-panel { background: #fff3cd; border: 1px solid #ffeeba; padding: 15px; border-radius: 6px; margin-bottom: 15px; }
     </style>
 </head>
 <body>
 
     <!-- Auth Section -->
     <div id="authSection" class="card">
-        <h2 id="authTitle">Login</h2>
+        <h2 id="authTitle">Enterprise Login</h2>
         <input type="text" id="username" placeholder="Username">
         <input type="password" id="password" placeholder="Password">
-        <button type="button" id="authBtn" style="width: 100%; margin-top: 5px;" onclick="handleAuth()">Login</button>
-        <p style="text-align: center; font-size: 14px; margin-bottom: 0; margin-top: 10px;">
+        <div id="roleSelectContainer" class="hidden">
+            <select id="roleSelect">
+                <option value="user">User</option>
+                <option value="admin">Admin</option>
+            </select>
+        </div>
+        <button type="button" id="authBtn" style="width: 100%; margin-top: 10px;" onclick="handleAuth()">Login</button>
+        <p style="text-align: center; font-size: 14px; margin-top: 15px;">
             <span id="toggleText">Don't have an account?</span> 
-            <a href="javascript:void(0)" onclick="toggleAuthMode()" id="toggleLink">Register</a>
+            <a href="javascript:void(0)" onclick="toggleAuthMode()" id="toggleLink" style="color: #007bff; text-decoration: none; font-weight: bold;">Register</a>
         </p>
     </div>
 
     <!-- App Section -->
     <div id="appSection" class="card hidden">
         <div class="user-info">
-            <span>Welcome, <strong id="userDisplay"></strong>!</span>
+            <div>
+                <span>Welcome, <strong id="userDisplay"></strong></span>
+                <span id="roleBadge" class="badge"></span>
+            </div>
             <button class="logout-btn" onclick="logout()">Logout</button>
         </div>
-        <h3>Advanced Task Manager (Level 3)</h3>
+
+        <!-- Admin Panel (Visible Only for Admins) -->
+        <div id="adminPanel" class="admin-panel hidden">
+            <h4>👑 Admin Control Panel</h4>
+            <p id="adminStats" style="font-size: 13px; margin: 5px 0;">Loading stats...</p>
+        </div>
+
+        <h3>Enterprise Task Manager</h3>
         
         <!-- Search & Add -->
         <input type="text" id="searchInput" placeholder="Search tasks..." onkeyup="filterTasks()">
@@ -57,15 +77,37 @@
 
     <script>
         let isLogin = true;
-        let currentUser = JSON.parse(localStorage.getItem('user')) || null;
+        let token = localStorage.getItem('token') || null;
+        let currentUser = null;
+        
+        try {
+            const savedUser = localStorage.getItem('user');
+            if (savedUser && savedUser !== "undefined") {
+                currentUser = JSON.parse(savedUser);
+            }
+        } catch (e) {
+            currentUser = null;
+        }
+
         let allTasks = [];
         let editingTaskId = null;
 
         function updateUI() {
-            if (currentUser) {
+            if (token && currentUser) {
                 document.getElementById('authSection').classList.add('hidden');
                 document.getElementById('appSection').classList.remove('hidden');
                 document.getElementById('userDisplay').innerText = currentUser.username;
+                
+                const roleBadge = document.getElementById('roleBadge');
+                roleBadge.innerText = currentUser.role;
+                if (currentUser.role === 'admin') {
+                    roleBadge.classList.add('admin-badge');
+                    document.getElementById('adminPanel').classList.remove('hidden');
+                    fetchAdminStats();
+                } else {
+                    roleBadge.classList.remove('admin-badge');
+                    document.getElementById('adminPanel').classList.add('hidden');
+                }
                 fetchTasks();
             } else {
                 document.getElementById('authSection').classList.remove('hidden');
@@ -75,53 +117,131 @@
 
         function toggleAuthMode() {
             isLogin = !isLogin;
-            document.getElementById('authTitle').innerText = isLogin ? 'Login' : 'Register';
+            document.getElementById('authTitle').innerText = isLogin ? 'Enterprise Login' : 'Enterprise Register';
             document.getElementById('authBtn').innerText = isLogin ? 'Login' : 'Register';
             document.getElementById('toggleText').innerText = isLogin ? "Don't have an account?" : "Already have an account?";
             document.getElementById('toggleLink').innerText = isLogin ? 'Register' : 'Login';
+            
+            const roleContainer = document.getElementById('roleSelectContainer');
+            if (!isLogin) {
+                roleContainer.classList.remove('hidden');
+            } else {
+                roleContainer.classList.add('hidden');
+            }
         }
 
         async function handleAuth() {
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
-            if (!username || !password) return alert('Fill all fields');
+            if (isLogin) {
+                await loginUser();
+            } else {
+                await registerUser();
+            }
+        }
 
-            const endpoint = isLogin ? '/api/login' : '/api/register';
+        async function registerUser() {
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const role = document.getElementById('roleSelect').value;
+
+            if (!username || !password) {
+                alert('Please fill in all fields');
+                return;
+            }
+
             try {
-                const res = await fetch(endpoint, {
+                const res = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, role })
+                });
+
+                let data = {};
+                try { data = await res.json(); } catch (e) { data = {}; }
+
+                if (res.ok) {
+                    alert('Registration successful! Please login.');
+                    toggleAuthMode();
+                } else {
+                    alert(data.error || 'Registration failed');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Connection error during registration');
+            }
+        }
+
+        async function loginUser() {
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+
+            if (!username || !password) {
+                alert('Please fill in all fields');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username, password })
                 });
-                const data = await res.json();
+
+                let data = {};
+                try { data = await res.json(); } catch (e) { data = {}; }
+
                 if (res.ok) {
-                    if (isLogin) {
-                        currentUser = { id: data.userId, username: data.username };
-                        localStorage.setItem('user', JSON.stringify(currentUser));
-                        updateUI();
-                    } else {
-                        alert('Registration successful! Please login.');
-                        toggleAuthMode();
-                    }
+                    token = data.token;
+                    currentUser = data.user;
+                    localStorage.setItem('token', token);
+                    localStorage.setItem('user', JSON.stringify(currentUser));
+                    updateUI();
                 } else {
-                    alert(data.error);
+                    alert(data.error || 'Login failed');
                 }
             } catch (err) {
-                alert('Connection error');
+                console.error(err);
+                alert('Connection error during login');
             }
         }
 
         function logout() {
+            localStorage.removeItem('token');
             localStorage.removeItem('user');
+            token = null;
             currentUser = null;
             updateUI();
         }
 
         async function fetchTasks() {
-            if (!currentUser) return;
-            const res = await fetch(`/api/tasks/${currentUser.id}`);
-            allTasks = await res.json();
-            displayTasks(allTasks);
+            if (!token) return;
+            try {
+                const res = await fetch('/api/tasks', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) {
+                    allTasks = await res.json();
+                    displayTasks(allTasks);
+                } else {
+                    if (res.status === 401 || res.status === 403) logout();
+                }
+            } catch (err) {
+                console.error('Error fetching tasks', err);
+            }
+        }
+
+        async function fetchAdminStats() {
+            try {
+                const res = await fetch('/api/tasks/admin/stats', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) {
+                    const stats = await res.json();
+                    document.getElementById('adminStats').innerText = 
+                        `Total Users in System: ${stats.totalUsers} | Total Tasks: ${stats.totalTasks}`;
+                }
+            } catch (err) {
+                console.error('Error fetching admin stats', err);
+            }
         }
 
         function displayTasks(tasks) {
@@ -132,9 +252,10 @@
                 return;
             }
             tasks.forEach(t => {
+                let ownerInfo = currentUser.role === 'admin' ? ` <small style="color:#666;">(User ID: ${t.user_id})</small>` : '';
                 list.innerHTML += `
                     <li>
-                        <span>${t.title}</span>
+                        <span>${t.title}${ownerInfo}</span>
                         <div class="actions">
                             <button class="edit-btn" onclick="editTask(${t.id}, '${t.title}')">Edit</button>
                             <button class="delete-btn" onclick="deleteTask(${t.id})">Delete</button>
@@ -151,22 +272,26 @@
 
         async function saveTask() {
             const input = document.getElementById('taskInput');
-            if (!input.value.trim() || !currentUser) return;
+            if (!input.value.trim() || !token) return;
 
             if (editingTaskId) {
-                // Update Task
                 await fetch(`/api/tasks/${editingTaskId}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
                     body: JSON.stringify({ title: input.value })
                 });
                 editingTaskId = null;
             } else {
-                // Add Task
                 await fetch('/api/tasks', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ title: input.value, userId: currentUser.id })
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ title: input.value })
                 });
             }
             input.value = '';
@@ -180,7 +305,10 @@
         }
 
         async function deleteTask(id) {
-            await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+            await fetch(`/api/tasks/${id}`, { 
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
             fetchTasks();
         }
 
