@@ -3,23 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Codveda Level 2 - Auth & DB Task</title>
+    <title>Codveda Level 3 - Advanced Task App</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 500px; margin: 40px auto; padding: 20px; background: #eef2f5; }
+        body { font-family: Arial, sans-serif; max-width: 550px; margin: 40px auto; padding: 20px; background: #eef2f5; }
         .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }
         h2, h3 { text-align: center; color: #333; margin-top: 0; }
         input { width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        button { width: 100%; padding: 10px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 15px; margin-top: 5px; }
-        button.secondary { background: #007bff; }
+        button { padding: 10px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
         .input-group { display: flex; gap: 10px; margin-bottom: 15px; }
         .input-group input { flex: 1; margin: 0; }
-        .input-group button { width: auto; background: #007bff; margin: 0; }
+        .input-group button { width: auto; background: #007bff; }
         ul { list-style: none; padding: 0; }
         li { background: #f9f9f9; margin-bottom: 8px; padding: 10px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #ddd; }
-        .delete-btn { background: #dc3545; padding: 5px 10px; font-size: 12px; width: auto; margin: 0; }
+        .actions { display: flex; gap: 5px; }
+        .delete-btn { background: #dc3545; padding: 5px 10px; font-size: 12px; }
+        .edit-btn { background: #ffc107; color: black; padding: 5px 10px; font-size: 12px; }
         .hidden { display: none; }
         .user-info { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-        .logout-btn { background: #6c757d; width: auto; padding: 5px 10px; font-size: 13px; margin: 0; }
+        .logout-btn { background: #6c757d; padding: 5px 10px; font-size: 13px; }
     </style>
 </head>
 <body>
@@ -29,10 +30,10 @@
         <h2 id="authTitle">Login</h2>
         <input type="text" id="username" placeholder="Username">
         <input type="password" id="password" placeholder="Password">
-        <button id="authBtn" onclick="handleAuth()">Login</button>
-        <p style="text-align: center; font-size: 14px; margin-bottom: 0;">
+        <button type="button" id="authBtn" style="width: 100%; margin-top: 5px;" onclick="handleAuth()">Login</button>
+        <p style="text-align: center; font-size: 14px; margin-bottom: 0; margin-top: 10px;">
             <span id="toggleText">Don't have an account?</span> 
-            <a href="#" onclick="toggleAuthMode()" id="toggleLink">Register</a>
+            <a href="javascript:void(0)" onclick="toggleAuthMode()" id="toggleLink">Register</a>
         </p>
     </div>
 
@@ -42,17 +43,23 @@
             <span>Welcome, <strong id="userDisplay"></strong>!</span>
             <button class="logout-btn" onclick="logout()">Logout</button>
         </div>
-        <h3>My Database Tasks</h3>
-        <div class="input-group">
+        <h3>Advanced Task Manager (Level 3)</h3>
+        
+        <!-- Search & Add -->
+        <input type="text" id="searchInput" placeholder="Search tasks..." onkeyup="filterTasks()">
+        <div class="input-group" style="margin-top: 10px;">
             <input type="text" id="taskInput" placeholder="Enter a new task...">
-            <button onclick="addTask()">Add Task</button>
+            <button onclick="saveTask()">Add Task</button>
         </div>
+
         <ul id="taskList"></ul>
     </div>
 
     <script>
         let isLogin = true;
         let currentUser = JSON.parse(localStorage.getItem('user')) || null;
+        let allTasks = [];
+        let editingTaskId = null;
 
         function updateUI() {
             if (currentUser) {
@@ -80,24 +87,27 @@
             if (!username || !password) return alert('Fill all fields');
 
             const endpoint = isLogin ? '/api/login' : '/api/register';
-            const res = await fetch(endpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
-            });
-
-            const data = await res.json();
-            if (res.ok) {
-                if (isLogin) {
-                    currentUser = { id: data.userId, username: data.username };
-                    localStorage.setItem('user', JSON.stringify(currentUser));
-                    updateUI();
+            try {
+                const res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    if (isLogin) {
+                        currentUser = { id: data.userId, username: data.username };
+                        localStorage.setItem('user', JSON.stringify(currentUser));
+                        updateUI();
+                    } else {
+                        alert('Registration successful! Please login.');
+                        toggleAuthMode();
+                    }
                 } else {
-                    alert('Registration successful! Please login.');
-                    toggleAuthMode();
+                    alert(data.error);
                 }
-            } else {
-                alert(data.error);
+            } catch (err) {
+                alert('Connection error');
             }
         }
 
@@ -110,28 +120,63 @@
         async function fetchTasks() {
             if (!currentUser) return;
             const res = await fetch(`/api/tasks/${currentUser.id}`);
-            const tasks = await res.json();
+            allTasks = await res.json();
+            displayTasks(allTasks);
+        }
+
+        function displayTasks(tasks) {
             const list = document.getElementById('taskList');
             list.innerHTML = '';
+            if (tasks.length === 0) {
+                list.innerHTML = '<p style="text-align:center; color:#777;">No tasks found.</p>';
+                return;
+            }
             tasks.forEach(t => {
                 list.innerHTML += `
                     <li>
                         <span>${t.title}</span>
-                        <button class="delete-btn" onclick="deleteTask(${t.id})">Delete</button>
+                        <div class="actions">
+                            <button class="edit-btn" onclick="editTask(${t.id}, '${t.title}')">Edit</button>
+                            <button class="delete-btn" onclick="deleteTask(${t.id})">Delete</button>
+                        </div>
                     </li>`;
             });
         }
 
-        async function addTask() {
+        function filterTasks() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            const filtered = allTasks.filter(t => t.title.toLowerCase().includes(query));
+            displayTasks(filtered);
+        }
+
+        async function saveTask() {
             const input = document.getElementById('taskInput');
-            if (!input.value || !currentUser) return;
-            await fetch('/api/tasks', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title: input.value, userId: currentUser.id })
-            });
+            if (!input.value.trim() || !currentUser) return;
+
+            if (editingTaskId) {
+                // Update Task
+                await fetch(`/api/tasks/${editingTaskId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: input.value })
+                });
+                editingTaskId = null;
+            } else {
+                // Add Task
+                await fetch('/api/tasks', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: input.value, userId: currentUser.id })
+                });
+            }
             input.value = '';
             fetchTasks();
+        }
+
+        function editTask(id, title) {
+            document.getElementById('taskInput').value = title;
+            editingTaskId = id;
+            document.getElementById('taskInput').focus();
         }
 
         async function deleteTask(id) {

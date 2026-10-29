@@ -108,6 +108,22 @@ app.post('/api/tasks', (req, res) => {
     });
 });
 
+// تعديل مهمة (Level 3 Feature)
+app.put('/api/tasks/:id', (req, res) => {
+    const taskId = req.params.id;
+    const { title } = req.body;
+    if (!title) {
+        return res.status(400).json({ error: 'Task title is required' });
+    }
+
+    db.run(`UPDATE tasks SET title = ? WHERE id = ?`, [title, taskId], function (err) {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        res.json({ message: 'Task updated successfully' });
+    });
+});
+
 // حذف مهمة
 app.delete('/api/tasks/:id', (req, res) => {
     const taskId = req.params.id;
